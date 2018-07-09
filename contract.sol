@@ -1,5 +1,10 @@
 pragma solidity ^0.4.22;
 
+//authors:alexandru dirman
+//july-2018
+//dcipher.io - "put your money where you mouth is" - escrow solution
+
+
 contract proforma  {
     address public owner;
     
@@ -17,7 +22,6 @@ contract proforma  {
         uint pay_step2;      //sent to client initial documentation(offer,research,demo...),  pay_step1+25% of total amount
         uint pay_step3;      //return the rest of 25 % to the client if the offer is accepted by the client
         uint commission_company;    //if the client reject the offer, we keep 25%
-        uint clientAmount;         //the amount sent by the client
         
         bool iscompleted ;    //client step validation
         }
@@ -63,34 +67,60 @@ contract proforma  {
          owner = msg.sender;
         } 
         
+        //Accept any amount of eth and transfer the difference back to the customer
+        function payAmountReturnChange(address to) payable onlyOwner{
+          uint fixAmount = 1000000000000000000 wei;
+          require (msg.value >= fixAmount);
+          uint moneyToReturn = msg.value - fixAmount; 
+        
+          if(moneyToReturn > 0)
+            to.transfer(moneyToReturn);
+        }
+        
+        uint step1 = 1000000000000000000 wei;
+        uint step2 = 500000000000000000 wei;
+        uint step3 = 500000000000000000 wei;
+        
+        function overallStepsPay() constant returns (uint, uint, uint) {
+            return (step1,step2,step3);
+        }
+        
+        /*  
         //step1 = 50 % fee
         uint step1 = msg.value/2;
-      //  restCompanyAmount[owner] += step1; 
+        //  restCompanyAmount[owner] += step1; 
         
         //step2 = 25 % fee
         uint step2 = step1/2;
         
         //
         uint step3 = 0;
+        */
+        
+        
+        
+        /*
         
         function payStep1(uint step1) {
-        //company step1 fee = 50%
-          require (step1 == 50);
-          companyFee1[msg.sender] = step1;
+        //company step1 fee = 50% from 1 eth
+          require (step1 == 1000000000000000000 wei);
+          //companyFee1[msg.sender] = step1;
         }
         
         function payStep2(uint step2) {
         //company step2 fee = 25%
-          require (step2 == 25);
-          companyFee2[msg.sender] = step2;
+          require (step2 == 5000000000 wei);
+          //companyFee2[msg.sender] = step2;
         }
         
         function payStep3(uint step3) {
         //company step3 fee = 25%
-          require (step3 == 25);
-          companyFee3[msg.sender] = step3;
+          require (step3 == 5000000000 wei);
+          //companyFee3[msg.sender] = step3;
         }
-
+        */
+        
+        /*
         function getpayStep1(address companyAddress) constant returns (uint) {
             return (companyFee1[companyAddress]);
         }
@@ -102,18 +132,20 @@ contract proforma  {
         function getpayStep3(address companyAddress) constant returns (uint) {
             return (companyFee3[companyAddress]);
         }
+        
+        */
+        
 
 
     mapping (address => uint256) public balances;
 
-    function setClient(address _address, string _fName, string _lName, string _email, uint _clientAmount) payable returns(bool success) {
+    function setClient(address _address, string _fName, string _lName, string _email) payable returns(bool success) {
        //require(msg.value > 0 && msg.sender != companyAddress);
        var client = clients[_address];
 
         client.fName = _fName;
         client.lName = _lName;
         client.email   =_email;
-        client.clientAmount   =_clientAmount;
         
         clientsDatabase.push(_address) -1;
         
@@ -129,17 +161,26 @@ contract proforma  {
         return true;
     }
     
-    function getClient() view public returns (address[]) {
+    function transferStep1(address to, uint step1) returns(bool success) {
+        if(balances[msg.sender] < 1000000000000000000 wei) throw;
+        balances[msg.sender] -= step1;
+        to.transfer(step1);
+        return true;
+    }
+    
+    
+    //Get an array with all clients registered
+    function getClientsList() view public returns (address[]) {
         return clientsDatabase ;
     }
     
     //get fname and last name, email
-    function getAllClients(address cli) view public returns (string, string, string){
+    function getAllClientDetails(address cli) view public returns (string, string, string){
         return (clients[cli].fName, clients[cli].lName, clients[cli].email);
     }
     
     //count the clients
-    function countClients() view public returns (uint){
+    function countNoClients() view public returns (uint){
         return clientsDatabase.length;
     }
     
@@ -167,9 +208,12 @@ contract proforma  {
          
 
          //function for the contract to accept ethereum
-           function() payable public{
-
-        }
+           function() payable public{}
+           
+           function kill() public {
+        if(msg.sender == owner)
+            selfdestruct(owner);
+    }
         
         
 }
