@@ -1,158 +1,128 @@
-pragma solidity ^0.4.22;
+pragma solidity ^0.4.24;
 
-//authors:alexandru dirman
+//authors:dcipher.io
 //july-2018
 //dcipher.io - "put your money where you mouth is" - escrow solution
 
 
-contract proforma  {
-    address public owner;
+import './ownable1.sol';
+
+contract putYourMoney is Ownable{
     
-    event Receive(uint value);
+    // modifier = a check if the value is right before executed the function
+    modifier fixAmmount(uint value){
+        // msg.value should be exactly 1 ether, else it will throw error
+        require(msg.value == value);
+            _; //continue to execute the funciton
+         
+    }
     
-    struct proformaStruct {
-        address client;     //the person who pay the money
+    //client structure, all the clients info
+    struct Client{
         string fName;
         string lName;
         string email;
-        address company;    //who receive the request(money)
-        address validator;  //the person who says if the task is completed or not
-        
-        uint pay_step1;      //answer client email(request),50% return to client of total amount if the company respond in 24 h
-        uint pay_step2;      //sent to client initial documentation(offer,research,demo...),  pay_step1+25% of total amount
-        uint pay_step3;      //return the rest of 25 % to the client if the offer is accepted by the client
-        uint commission_company;    //if the client reject the offer, we keep 25%
-        
-        bool iscompleted ;    //client step validation
-        }
-        
-    struct TransactionStruct
-        {                        
-            //Links to transaction from buyer
-            address client;             //person who is making payment
-            uint client_nounce;         //nounce of client transaction                            
-        }
-
-    //database of clients, each client then contain an array of his transactions
-    //    mapping(address => proformaStruct[]) public clientsDatabase;
-     
-        //mapping addresses- clients
-    mapping (address => proformaStruct) clients;
-    //define an address array that will store all of the instructor addresses
-    address[] public clientsDatabase; 
-    
-            //Every address have a Funds bank. All refunds, sales and escrow comissions are sent to this bank. Address owner can withdraw them at any time.
-        mapping(address => uint) public restCompanyAmount;
-
-        mapping(address => uint) public companyFee1;
-        mapping(address => uint) public companyFee2;
-        mapping(address => uint) public companyFee3;
-        
-        
-        
-        /// @dev allows only the owner to call functions with this modifier
-    modifier onlyOwner() {
-        require(msg.sender == owner);
-        _;
-    }   
-    
-    //view the balance in contract
-    function getBalanceContract() constant returns(uint){
-        return this.balance;
+        string company;
+        uint   mobile;
     }
     
-
+    //store the client structure into clients array
+    Client[] clients; 
+    //specify an address to a client
+    mapping (address => uint) clientAddress;
+    
+    /*
+    mapping (address => Client) clientAddress2;
+    address[] public clientsDatabase;
+    */
+    
+    //event to get fired when someone add a new client
+    event addedClient(address owner, uint clientId, string fName, string lName, string email, string company, uint mobile);
+    
+    //add new client into array list
+    function addClient(string _fName, string _lName, string _email, string _company, uint _mobile)  payable fixAmmount(1000000000000000000){
+        address owner =msg.sender;      //set an address for each client
+        uint id = clients.push(Client(_fName, _lName, _email, _company, _mobile));  //set an id for each owner
+        clientAddress[owner] = id;     //save in id your client structure
+        addedClient(owner, id, _fName, _lName, _email, _company, _mobile);   //fire the events to see them in our webpage
+        
+    
+        balances[msg.sender] += msg.value;
+    }
+    
+    
+    
+    
+    //view clients with all details
+    function getClients(uint _id) view returns (string, string, string, string, uint) {
+      return (clients[_id].fName,clients[_id].lName,clients[_id].email, clients[_id].company, clients[_id].mobile);
+        }
+    
+    /*
+    //Get an array with all clients registered
+    function getClientsList() view public returns (address[]) {
+        return clientsDatabase;
+    }
+    */
+    
+    //count the clients
+    function countNoClients() view public returns (uint){
+        return clients.length;
+    }    
+        
+    
+    //just the owner can see his details
+    function getOwnerClientDetails() returns (string, string, string, string, uint) {
+        address owner =msg.sender;
+        uint id = clientAddress[owner];
+      return (clients[id-1].fName,clients[id-1].lName,clients[id-1].email, clients[id-1].company, clients[id-1].mobile);
+        }
+    
     //set the owner of the contract  
     constructor () public {
          owner = msg.sender;
         } 
-        
-        //Accept any amount of eth and transfer the difference back to the customer
-        function payAmountReturnChange(address to) payable onlyOwner{
-          uint fixAmount = 1000000000000000000 wei;
-          require (msg.value >= fixAmount);
-          uint moneyToReturn = msg.value - fixAmount; 
-        
-          if(moneyToReturn > 0)
-            to.transfer(moneyToReturn);
-        }
-        
+    
+    
+    //view the balance in contract
+    function getContractBalance() constant returns(uint){
+        return this.balance;
+    }
+    
+    //Set the default steps fee hardcoded
         uint step1 = 1000000000000000000 wei;
         uint step2 = 500000000000000000 wei;
         uint step3 = 500000000000000000 wei;
+        bool step1valid = false;
+        bool step2valid = false;
+        bool step3valid = false;
         
-        function overallStepsPay() constant returns (uint, uint, uint) {
-            return (step1,step2,step3);
+    //after deploying the contract, owner can define all the steps fee together
+        function setStepsFee(uint _step1, uint _step2, uint _step3) onlyOwner{
+            step1 = _step1;
+            step2 = _step2;
+            step3 = _step3;
         }
         
-        /*  
-        //step1 = 50 % fee
-        uint step1 = msg.value/2;
-        //  restCompanyAmount[owner] += step1; 
-        
-        //step2 = 25 % fee
-        uint step2 = step1/2;
-        
-        //
-        uint step3 = 0;
-        */
-        
-        
-        
-        /*
-        
-        function payStep1(uint step1) {
-        //company step1 fee = 50% from 1 eth
-          require (step1 == 1000000000000000000 wei);
-          //companyFee1[msg.sender] = step1;
+    //after deploying the contract, owner can define just the value of step1
+        function setStep1(uint _step1) onlyOwner{
+            step1 = _step1;
+        }
+        //after deploying the contract, owner can define just the value of step2
+        function setStep2(uint _step2) onlyOwner{
+            step2 = _step2;
+        }
+    //after deploying the contract, owner can define just the value of step3
+        function setStep3(uint _step3) onlyOwner{
+            step3 = _step3;
         }
         
-        function payStep2(uint step2) {
-        //company step2 fee = 25%
-          require (step2 == 5000000000 wei);
-          //companyFee2[msg.sender] = step2;
+    //view all steps     
+    function getAllSteps() constant returns (uint, uint, uint) {
+        return (step1,step2,step3);
         }
-        
-        function payStep3(uint step3) {
-        //company step3 fee = 25%
-          require (step3 == 5000000000 wei);
-          //companyFee3[msg.sender] = step3;
-        }
-        */
-        
-        /*
-        function getpayStep1(address companyAddress) constant returns (uint) {
-            return (companyFee1[companyAddress]);
-        }
-        
-        function getpayStep2(address companyAddress) constant returns (uint) {
-            return (companyFee2[companyAddress]);
-        }
-        
-        function getpayStep3(address companyAddress) constant returns (uint) {
-            return (companyFee3[companyAddress]);
-        }
-        
-        */
-        
-
-
+    
     mapping (address => uint256) public balances;
-
-    function setClient(address _address, string _fName, string _lName, string _email) payable returns(bool success) {
-       //require(msg.value > 0 && msg.sender != companyAddress);
-       var client = clients[_address];
-
-        client.fName = _fName;
-        client.lName = _lName;
-        client.email   =_email;
-        
-        clientsDatabase.push(_address) -1;
-        
-        balances[msg.sender] += msg.value;
-        return true;
-    }
-
     //similar to withdraw but ether is sent to specified address, not the caller
     function transfer(address to, uint value) returns(bool success)  {
         if(balances[msg.sender] < value) throw;
@@ -161,59 +131,31 @@ contract proforma  {
         return true;
     }
     
-    function transferStep1(address to, uint step1) returns(bool success) {
-        if(balances[msg.sender] < 1000000000000000000 wei) throw;
-        balances[msg.sender] -= step1;
-        to.transfer(step1);
+    function transferStep2(address to) returns(bool success) {
+        if(balances[msg.sender] < step2) throw;
+        balances[msg.sender] -= step2;
+        to.transfer(step2);
         return true;
     }
     
-    
-    //Get an array with all clients registered
-    function getClientsList() view public returns (address[]) {
-        return clientsDatabase ;
+    function transferStep3(address to) returns(bool success)  {
+        if(balances[msg.sender] < step3) throw;
+        balances[msg.sender] -= step3;
+        to.transfer(step3);
+        return true;
     }
     
-    //get fname and last name, email
-    function getAllClientDetails(address cli) view public returns (string, string, string){
-        return (clients[cli].fName, clients[cli].lName, clients[cli].email);
+    //withdraw the remaining eth
+    function withdrawEther() external onlyOwner {
+    owner.transfer(this.balance);
     }
     
-    //count the clients
-    function countNoClients() view public returns (uint){
-        return clientsDatabase.length;
-    }
     
-//     function setCompleted(uint completed) public restricted {
-//    last_completed_migration = completed;
-//  } 
     
-        
-   
-   /* 
-    function setcommissionCompany(uint comission){
-        require comission = 50;
-        commissionCompany[msg.sender]=comission;
-    }
-        
-    //used by the company in 24 h to accept the ticket
-    //used to sent back to client 50 % of total amount
-    function answerRequest() public {
-      uint backToClient  = msg.value/2;
-      balanceOf[msg.sender] += backToClient;
-     
-    } 
-    */
-         
-         
-
-         //function for the contract to accept ethereum
-           function() payable public{}
-           
-           function kill() public {
+    //kill the contract
+    function kill() public onlyOwner{
         if(msg.sender == owner)
             selfdestruct(owner);
     }
-        
-        
+    
 }
