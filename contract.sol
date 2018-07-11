@@ -6,9 +6,59 @@ pragma solidity^0.4.24;
 
 import './ownable1.sol';
 
+/**
+ * @title SafeMath
+ * @dev Math operations with safety checks that throw on error
+ */
+library SafeMath {
+  /**
+  * @dev Multiplies two numbers, throws on overflow.
+  */
+  function mul(uint256 a, uint256 b) internal pure returns (uint256 c) {
+    // Gas optimization: this is cheaper than asserting 'a' not being zero, but the
+    // benefit is lost if 'b' is also tested.
+    // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522
+    if (a == 0) {
+      return 0;
+    }
+
+    c = a * b;
+    assert(c / a == b);
+    return c;
+  }
+
+  /**
+  * @dev Integer division of two numbers, truncating the quotient.
+  */
+  function div(uint256 a, uint256 b) internal pure returns (uint256) {
+    // assert(b > 0); // Solidity automatically throws when dividing by 0
+    // uint256 c = a / b;
+    // assert(a == b * c + a % b); // There is no case in which this doesn't hold
+    return a / b;
+  }
+
+  /**
+  * @dev Subtracts two numbers, throws on overflow (i.e. if subtrahend is greater than minuend).
+  */
+  function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+    assert(b <= a);
+    return a - b;
+  }
+
+  /**
+  * @dev Adds two numbers, throws on overflow.
+  */
+  function add(uint256 a, uint256 b) internal pure returns (uint256 c) {
+    c = a + b;
+    assert(c >= a);
+    return c;
+  }
+}  
+
 contract putYourMoney is Ownable{
-    
-    // modifier = a check if the value equal to n before the function is executed
+   using SafeMath for uint256;  
+   
+    // modifier = a check if the value equal to n ether before the function is executed
     modifier fixAmmount(uint value){
         // msg.value should be exactly n ether, else it will throw error
         require(msg.value == value);
@@ -22,9 +72,9 @@ contract putYourMoney is Ownable{
         string email;
         string company;
         uint   mobile;
-        uint  creationTime;
-        uint  step2valid;
-        uint  step3valid;
+        uint   creationTime;
+        uint8  step2valid;
+        uint8  step3valid;
     }
     
     //store the client structure into clients array
@@ -33,10 +83,10 @@ contract putYourMoney is Ownable{
     mapping (address => uint) clientAddress;
 
     //event to get fired when someone add a new client
-    event addedClient(address owner, uint clientId, string fName, string lName, string email, string company, uint mobile, uint creationTime, uint step2valid, uint step3valid);
+    event addedClient(address owner, uint clientId, string fName, string lName, string email, string company, uint mobile, uint creationTime, uint8 step2valid, uint8 step3valid);
     
     //add new client into array list
-    function addClient(string _fName, string _lName, string _email, string _company, uint _mobile, uint _creationTime, uint _step2valid, uint _step3valid) public  payable fixAmmount(1000000000000000000){
+    function addClient(string _fName, string _lName, string _email, string _company, uint _mobile, uint _creationTime, uint8 _step2valid, uint8 _step3valid) public  payable fixAmmount(1000000000000000000){
         _creationTime = now;     //get the current timestamp when a new client register
         _step2valid = 1;         //default value (acting as a false value for step2), if _step2valid = 2 it's acting as true
         _step3valid = 1;        //default value (acting as a false value for step3), if _step3valid = 2 it's acting as true
@@ -44,9 +94,10 @@ contract putYourMoney is Ownable{
         uint id = clients.push(Client(_fName, _lName, _email, _company,  _mobile, _creationTime, _step2valid, _step3valid));  //set an id and push all the info into it
         clientAddress[owner] = id;       //save in id your client structure
         
-        emit addedClient(owner, id, _fName, _lName, _email, _company, _mobile,  _creationTime, _step2valid, _step3valid);   //fire the events to see them in our webpage, without emit is deprecated
+        emit addedClient(owner, id, _fName, _lName, _email, _company, _mobile,  _creationTime, _step2valid, _step3valid);   //fire the events to call them in js, without emit is deprecated
         
-        balances[msg.sender] += msg.value;  //balance of each sender(client)
+        //balances[msg.sender] += msg.value;  //balance of each sender(client)
+        balances[msg.sender] = balances[msg.sender].add(msg.value);  //balance of each sender(client) using SafeMath
     }
     
     /*
@@ -80,13 +131,13 @@ contract putYourMoney is Ownable{
     }
     
     
-    //Set the default steps fee hardcoded
+    //Set the default steps fee hardcoded   
         uint step1 = 1000000000000000000 wei;
         uint step2 = 500000000000000000 wei;
         uint step3 = 500000000000000000 wei;
         
     //after deploying the contract, owner can define all the steps fee together
-        function setStepsFee(uint _step1, uint _step2, uint _step3) public onlyOwner{
+        function setAllSteps(uint _step1, uint _step2, uint _step3) public onlyOwner{
             step1 = _step1;
             step2 = _step2;
             step3 = _step3;
@@ -122,30 +173,40 @@ contract putYourMoney is Ownable{
     }
     */
     
+    //client transfer his first part, 0.5 eth
+    //can transfer them after 1 day
+    //can transfer them only once, after that step2valid became 2
+    //using SafeMath library
     function transferStep2(address to) returns(bool)  {
         uint id = clientAddress[msg.sender];
         require (clients[id-1].step2valid == 1);
         require (1531645782 >= clients[id-1].creationTime + 1 days);
         if(balances[msg.sender] <= step2) throw;
-            balances[msg.sender] -= step2;
+            //balances[msg.sender] -= step2;
+            balances[msg.sender] = balances[msg.sender].sub(step2);
             to.transfer(step2);
             clients[id-1].step2valid = 2;
         return true;
     }
     
+    //client transfer his second part, 0.5 eth
+    //can transfer them after 1 day
+    //can transfer them only once, after that step3valid became 2
+    //using SafeMath library
     function transferStep3(address to) returns(bool)  {
         uint id = clientAddress[msg.sender];
         require (clients[id-1].step3valid == 1);
         require (now >= clients[id-1].creationTime + 7 days);
         if (balances[msg.sender] <= step3) throw;
-            balances[msg.sender] -= step3;
+            //balances[msg.sender] -= step3;
+            balances[msg.sender] = balances[msg.sender].sub(step3);
             to.transfer(step3);
             clients[id-1].step3valid = 2;
         return true;
     }
 
-    //withdraw the remaining eth from contract
-    function withdrawEther() external onlyOwner {
+    //safe withdraw the remaining eth from contract if the client don't claim them
+    function safeWithdrawEther() external onlyOwner {
     owner.transfer(address(this).balance);
     }
     
@@ -154,5 +215,6 @@ contract putYourMoney is Ownable{
         if(msg.sender == owner)
             selfdestruct(owner);
     }
-    
+   
+
 }
